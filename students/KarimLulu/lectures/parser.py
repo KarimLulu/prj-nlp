@@ -140,12 +140,13 @@ class Parser(object):
     def get_action(self, stack, q, parse):
         if stack and not q:
             return "reduce"
-        if stack[-1]["head"] == q[0]["id"]:
+        if stack[-1]["head"] == q[0]["id"] and (stack[-1]["id"] not in [child for child, _ in parse.relations]):
             return "left"
         elif q[0]["head"] == stack[-1]["id"]:
             return "right"
         elif (stack[-1]["head"] in [parent for _, parent in parse.relations] 
-              and q[0]["head"] < stack[-1]["id"]):
+              and q[0]["head"] < stack[-1]["id"]
+             ):
             return "reduce"
         else:
             return "shift" 
