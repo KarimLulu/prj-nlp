@@ -80,7 +80,7 @@ hw*
 
 2554/
 cmv/
-*.dill
+# *.dill
 *.bin
 
 homework-10/*.txt
