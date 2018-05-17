@@ -147,7 +147,7 @@ class Parser(object):
     def get_action(self, stack, q, parse):
         if stack and not q:
             return "reduce"
-        if stack[-1]["head"] == q[0]["id"] and (stack[-1]["id"] not in 
+        if stack[-1]["head"] == q[0]["id"] and (stack[-1]["id"] not in
             [child for child, _, _ in parse.relations]):
             return "left"
         elif q[0]["head"] == stack[-1]["id"]:
@@ -159,7 +159,7 @@ class Parser(object):
         else:
             return "shift"
 
-    def parse(self, tree, oracle=None, log=False, feature_extractor=extract_features, 
+    def parse(self, tree, oracle=None, log=False, feature_extractor=extract_features,
               labeled=True, update_label_index=True):
         q = tree.copy()
         parse = Parse(len(q))
@@ -175,7 +175,7 @@ class Parser(object):
             deprel = ""
             if oracle is not None:
                 X = np.asarray(feature_set)[np.newaxis, :]
-                probas = oracle.predict([X[:, :n_w], X[:, n_w:n_w+n_t], 
+                probas = oracle.predict([X[:, :n_w], X[:, n_w:n_w+n_t],
                                         X[:, n_w+n_t:n_w+n_t+n_d], X[:, n_w+n_t+n_d:]])[0]
                 pred_action_id = np.argmax(probas)
                 action = self.idx_2_label[pred_action_id]
@@ -186,12 +186,12 @@ class Parser(object):
 
             if action == "left":
                 if not deprel:
-                    deprel = clean_deprel(stack[-1]["deprel"])
+                    deprel = stack[-1]["deprel"]
                 parse.add_relation(stack[-1]["id"], q[0]["id"], deprel)
                 stack.pop()
             elif action == "right":
                 if not deprel:
-                    deprel = clean_deprel(q[0]["deprel"])
+                    deprel = q[0]["deprel"]
                 parse.add_relation(q[0]["id"], stack[-1]["id"], deprel)
                 stack.append(q.pop(0))
             elif action == "reduce":
