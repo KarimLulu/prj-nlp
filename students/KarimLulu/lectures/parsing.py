@@ -172,11 +172,15 @@ class Parser(object):
                 print("Q:", [el["form"] for el in q])
             feature_set, n_w, n_t, n_d, n_num = feature_extractor(stack, q, tree, parse)
 
+            if X is None:
+                X = [[0]*len(feature_set) for _ in range(5)]
+
             deprel = ""
             if oracle is not None:
-                X = np.asarray(feature_set)[np.newaxis, :]
-                probas = oracle.predict([X[:, :n_w], X[:, n_w:n_w+n_t],
-                                        X[:, n_w+n_t:n_w+n_t+n_d], X[:, n_w+n_t+n_d:]])[0]
+                X.append(feature_set)
+                X1 = np.array([X])[:, -5:, :]
+                probas = oracle.predict([X1[:, :, :n_w], X1[:, :, n_w:n_w+n_t], X1[:, :, n_w+n_t:n_w+n_t+n_d], X1[:, :, n_w+n_t+n_d:]])[0][-1]
+                pred_action_id = np.argmax(probas[:-1])
                 pred_action_id = np.argmax(probas)
                 action = self.idx_2_label[pred_action_id]
                 if "left" in action or "right" in action:
