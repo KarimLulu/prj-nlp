@@ -1,4 +1,7 @@
 from collections import OrderedDict
+import numpy as np
+
+from helpers import clean_deprel
 
 ROOT = OrderedDict([('id', 0), ('form', 'ROOT'), ('lemma', 'ROOT'), ('upostag', "ROOT"),
                     ('xpostag', None), ('feats', None), ('head', None), ('deprel', None),
@@ -125,34 +128,39 @@ class Parse(object):
             self.lefts.append([])
             self.rights.append([])
 
-    def add_relation(self, child, head):
-        self.relations.append((child, head))
+    def add_relation(self, child, head, deprel=None):
+        self.relations.append((child, head, deprel))
         if child < head:
-            self.lefts[head].append(child)
+            self.lefts[head].append((child, deprel))
         else:
-            self.rights[head].append(child)
+            self.rights[head].append((child, deprel))
 
 class Parser(object):
 
-    def __init__(self):
-        self.label_index = {}
+    def __init__(self, label_index={}):
+        self.label_index = label_index
+
+    @property
+    def idx_2_label(self):
+        return {v:k for k,v in self.label_index.items()}
 
     def get_action(self, stack, q, parse):
         if stack and not q:
             return "reduce"
-        if stack[-1]["head"] == q[0]["id"] and (stack[-1]["id"] not in [child for child, _ in parse.relations]):
+        if stack[-1]["head"] == q[0]["id"] and (stack[-1]["id"] not in 
+            [child for child, _, _ in parse.relations]):
             return "left"
         elif q[0]["head"] == stack[-1]["id"]:
             return "right"
-        elif (stack[-1]["head"] in [parent for _, parent in parse.relations]
+        elif (stack[-1]["head"] in [parent for _, parent, _ in parse.relations]
               and q[0]["head"] < stack[-1]["id"]
              ):
             return "reduce"
         else:
             return "shift"
 
-    def parse(self, tree, oracle=None, vectorizer=None, log=False, feature_extractor=extract_features,
-              labeled=True):
+    def parse(self, tree, oracle=None, log=False, feature_extractor=extract_features, 
+              labeled=True, update_label_index=True):
         q = tree.copy()
         parse = Parse(len(q))
         stack = [ROOT]
@@ -162,22 +170,29 @@ class Parser(object):
             if log:
                 print("Stack:", [el["form"] for el in stack])
                 print("Q:", [el["form"] for el in q])
-            feature_set, n_w, n_t, n_d = feature_extractor(stack, q, tree, parse)
+            feature_set, n_w, n_t, n_d, n_num = feature_extractor(stack, q, tree, parse)
 
+            deprel = ""
             if oracle is not None:
-                v_features = vectorizer.transform(feature_set)
-                action = oracle.predict(v_features)[0]
+                X = np.asarray(feature_set)[np.newaxis, :]
+                probas = oracle.predict([X[:, :n_w], X[:, n_w:n_w+n_t], 
+                                        X[:, n_w+n_t:n_w+n_t+n_d], X[:, n_w+n_t+n_d:]])[0]
+                pred_action_id = np.argmax(probas)
+                action = self.idx_2_label[pred_action_id]
+                if "left" in action or "right" in action:
+                    action, deprel = action.split("_")
             else:
                 action = self.get_action(stack or None, q or None, parse)
 
-            deprel = ""
             if action == "left":
-                parse.add_relation(stack[-1]["id"], q[0]["id"])
-                deprel = stack[-1]["deprel"]
+                if not deprel:
+                    deprel = clean_deprel(stack[-1]["deprel"])
+                parse.add_relation(stack[-1]["id"], q[0]["id"], deprel)
                 stack.pop()
             elif action == "right":
-                parse.add_relation(q[0]["id"], stack[-1]["id"])
-                deprel = q[0]["deprel"]
+                if not deprel:
+                    deprel = clean_deprel(q[0]["deprel"])
+                parse.add_relation(q[0]["id"], stack[-1]["id"], deprel)
                 stack.append(q.pop(0))
             elif action == "reduce":
                 stack.pop()
@@ -187,11 +202,10 @@ class Parser(object):
             if deprel and labeled:
                 action = f"{action}_{deprel}"
 
-            if ":" in action:
-                action = action.split(":")[0]
-            action_id = len(self.label_index)
-            self.label_index[action] = self.label_index.get(action, action_id)
+            if update_label_index:
+                action_id = len(self.label_index)
+                self.label_index[action] = self.label_index.get(action, action_id)
 
             labels.append(self.label_index[action])
             features.append(feature_set)
-        return labels, features, parse.relations, n_w, n_t, n_d
+        return labels, features, parse.relations, n_w, n_t, n_d, n_num

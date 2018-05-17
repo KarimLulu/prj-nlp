@@ -21,3 +21,8 @@ def read_embeddings(filename, word_index=None):
                 vec = np.asarray(values[1:], dtype=np.float32)
                 word_2_vec[word] = vec
     return word_2_vec, ndim, words
+
+def clean_deprel(deprel):
+    if ":" in deprel:
+        return deprel.split(":")[0]
+    return deprel
